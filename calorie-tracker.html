@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>fuel log</title>
+
+  <!--
+  ══════════════════════════════════════════════
+  SUPABASE SETUP — run this SQL once in your
+  Supabase SQL editor before first use:
+  ══════════════════════════════════════════════
+
+  CREATE TABLE entries (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    meal_type text NOT NULL,
+    food_name text NOT NULL,
+    calories integer NOT NULL,
+    protein  integer NOT NULL,
+    logged_at date NOT NULL DEFAULT CURRENT_DATE,
+    created_at timestamptz DEFAULT now()
+  );
+
+  -- disable RLS for personal use (no auth needed)
+  ALTER TABLE entries DISABLE ROW LEVEL SECURITY;
+
+  ══════════════════════════════════════════════
+  -->
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0c0c0c;
+      --bg2:      #141414;
+      --bg3:      #1c1c1c;
+      --border:   #2a2a2a;
+      --border2:  #333;
+      --text:     #e8e4dc;
+      --muted:    #666;
+      --accent:   #e8a838;
+      --accent2:  #c47f1a;
+      --green:    #5cba6e;
+      --red:      #e85c5c;
+      --font:     'JetBrains Mono', monospace;
+    }
+
+    html, body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    #root { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+
+    /* ── header ── */
+    .site-header {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+    }
+    .site-header h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    .site-header span {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ── daily stats ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+    .stat-box {
+      background: var(--bg2);
+      padding: 1.25rem 1.5rem;
+    }
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.03em;
+    }
+    .stat-value span {
+      font-size: 0.9rem;
+      font-weight: 300;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+    .stat-box:first-child .stat-value { color: var(--accent); }
+    .stat-box:last-child  .stat-value { color: var(--green); }
+
+    /* ── section headers ── */
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── form ── */
+    .add-form {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+    input, select {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 13px;
+      padding: 0.55rem 0.75rem;
+      outline: none;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--bg3); }
+
+    .btn {
+      background: var(--accent);
+      color: #0c0c0c;
+      border: none;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.6rem 1.5rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      width: 100%;
+    }
+    .btn:hover  { background: var(--accent2); }
+    .btn:active { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── entries list ── */
+    .date-group { margin-bottom: 2rem; }
+    .date-heading {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .date-heading .date-str {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .date-heading .date-totals {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .date-heading .date-line {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .meal-group { margin-bottom: 1rem; }
+    .meal-tag {
+      display: inline-block;
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      padding: 1px 6px;
+      margin-bottom: 0.4rem;
+    }
+
+    .entry-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.5rem 0.75rem;
+      border-left: 2px solid transparent;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .entry-row:hover {
+      background: var(--bg2);
+      border-left-color: var(--border2);
+    }
+    .entry-name { color: var(--text); }
+    .entry-cal  { color: var(--accent); font-size: 12px; min-width: 60px; text-align: right; }
+    .entry-pro  { color: var(--green);  font-size: 12px; min-width: 60px; text-align: right; }
+    .del-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 0 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .del-btn:hover { color: var(--red); }
+
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      padding: 3rem 0;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      padding: 0.6rem 1.5rem;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .toast.show { opacity: 1; }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      font-family: var(--font);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-bottom: -1px;
+    }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
+
+    .legend-row {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 1rem;
+      letter-spacing: 0.08em;
+    }
+    .legend-row span { display: flex; align-items: center; gap: 4px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot-cal { background: var(--accent); }
+    .dot-pro { background: var(--green); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .fade-in { animation: fadeIn 0.2s ease forwards; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const SUPABASE_URL = 'https://tuwgghccurolnwyksnkw.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1d2dnaGNjdXJvbG53eWtzbmt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NDEwMjQsImV4cCI6MjA5MzQxNzAyNH0.GuxNb_Rvs6OKBv963bc2DS4iNJnQBL9eM09t4tnNQE8';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Pre-workout', 'Post-workout'];
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function fmtDate(d) {
+  const dt = new Date(d + 'T00:00:00');
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const yday = new Date(now); yday.setDate(yday.getDate() - 1);
+  const ydayStr = yday.toISOString().slice(0, 10);
+  if (d === todayStr) return 'Today';
+  if (d === ydayStr) return 'Yesterday';
+  return dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', weekday: 'short' });
+}
+
+function groupByDate(entries) {
+  const map = {};
+  entries.forEach(e => {
+    if (!map[e.logged_at]) map[e.logged_at] = {};
+    if (!map[e.logged_at][e.meal_type]) map[e.logged_at][e.meal_type] = [];
+    map[e.logged_at][e.meal_type].push(e);
+  });
+  return map;
+}
+
+function App() {
+  const [entries, setEntries]     = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [tab, setTab]             = useState('log'); // 'log' | 'history'
+  const [toast, setToast]         = useState('');
+  const [toastVisible, setTV]     = useState(false);
+
+  // form
+  const [meal,     setMeal]     = useState('Lunch');
+  const [food,     setFood]     = useState('');
+  const [calories, setCalories] = useState('');
+  const [protein,  setProtein]  = useState('');
+  const [saving,   setSaving]   = useState(false);
+
+  const showToast = (msg) => {
+    setToast(msg); setTV(true);
+    setTimeout(() => setTV(false), 2000);
+  };
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await sb
+      .from('entries')
+      .select('*')
+      .order('logged_at', { ascending: false })
+      .order('created_at', { ascending: true });
+    if (!error) setEntries(data || []);
+    else showToast('Error loading data');
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const todayEntries = entries.filter(e => e.logged_at === today());
+  const totalCal = todayEntries.reduce((s, e) => s + e.calories, 0);
+  const totalPro = todayEntries.reduce((s, e) => s + e.protein, 0);
+
+  const add = async () => {
+    if (!food.trim() || !calories || !protein) return;
+    setSaving(true);
+    const { error } = await sb.from('entries').insert({
+      meal_type: meal,
+      food_name: food.trim(),
+      calories: parseInt(calories),
+      protein: parseInt(protein),
+      logged_at: today(),
+    });
+    if (!error) {
+      setFood(''); setCalories(''); setProtein('');
+      showToast('logged ✓');
+      await load();
+    } else {
+      showToast('Error saving');
+    }
+    setSaving(false);
+  };
+
+  const del = async (id) => {
+    await sb.from('entries').delete().eq('id', id);
+    setEntries(prev => prev.filter(e => e.id !== id));
+    showToast('deleted');
+  };
+
+  const grouped = groupByDate(entries);
+  const dates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+
+  return (
+    <>
+      <div class="site-header">
+        <h1>fuel log</h1>
+        <span>personal tracker</span>
+      </div>
+
+      {/* Stats */}
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-label">Today · Calories</div>
+          <div class="stat-value">{totalCal.toLocaleString()}<span>kcal</span></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Today · Protein</div>
+          <div class="stat-value">{totalPro}<span>g</span></div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div class="tabs">
+        <button class={`tab ${tab === 'log' ? 'active' : ''}`} onClick={() => setTab('log')}>Log food</button>
+        <button class={`tab ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>History</button>
+      </div>
+
+      {tab === 'log' && (
+        <>
+          {/* Add form */}
+          <div class="section-label">Add entry</div>
+          <div class="add-form fade-in">
+            <div class="form-grid">
+              <div>
+                <label>Meal</label>
+                <select value={meal} onChange={e => setMeal(e.target.value)}>
+                  {MEALS.map(m => <option key={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label>Food name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Chicken breast"
+                  value={food}
+                  onChange={e => setFood(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && add()}
+                />
+              </div>
+            </div>
+            <div class="form-row">
+              <div>
+                <label>Calories (kcal)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={calories}
+                  onChange={e => setCalories(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && add()}
+                />
+              </div>
+              <div>
+                <label>Protein (g)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={protein}
+                  onChange={e => setProtein(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && add()}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <button class="btn" onClick={add} disabled={saving || !food.trim() || !calories || !protein}>
+                  {saving ? '...' : '+ Add'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Today's entries */}
+          <div class="section-label">Today's log</div>
+          <div class="legend-row">
+            <span><span class="dot dot-cal"></span>calories</span>
+            <span><span class="dot dot-pro"></span>protein</span>
+          </div>
+
+          {loading ? (
+            <div class="empty-state">loading...</div>
+          ) : todayEntries.length === 0 ? (
+            <div class="empty-state">nothing logged yet today</div>
+          ) : (
+            <div class="fade-in">
+              {Object.entries(grouped[today()] || {}).map(([mealType, items]) => (
+                <div key={mealType} class="meal-group">
+                  <div class="meal-tag">{mealType}</div>
+                  {items.map(e => (
+                    <div key={e.id} class="entry-row">
+                      <div class="entry-name">{e.food_name}</div>
+                      <div class="entry-cal">{e.calories} kcal</div>
+                      <div class="entry-pro">{e.protein}g</div>
+                      <button class="del-btn" onClick={() => del(e.id)} title="delete">×</button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {tab === 'history' && (
+        <div class="fade-in">
+          <div class="section-label">All entries</div>
+          {loading ? (
+            <div class="empty-state">loading...</div>
+          ) : dates.length === 0 ? (
+            <div class="empty-state">no data yet</div>
+          ) : (
+            dates.map(date => {
+              const dayEntries = Object.values(grouped[date]).flat();
+              const dayCal = dayEntries.reduce((s, e) => s + e.calories, 0);
+              const dayPro = dayEntries.reduce((s, e) => s + e.protein, 0);
+              return (
+                <div key={date} class="date-group">
+                  <div class="date-heading">
+                    <span class="date-str">{fmtDate(date)}</span>
+                    <span class="date-totals">{dayCal} kcal · {dayPro}g protein</span>
+                    <span class="date-line"></span>
+                  </div>
+                  {Object.entries(grouped[date]).map(([mealType, items]) => (
+                    <div key={mealType} class="meal-group">
+                      <div class="meal-tag">{mealType}</div>
+                      {items.map(e => (
+                        <div key={e.id} class="entry-row">
+                          <div class="entry-name">{e.food_name}</div>
+                          <div class="entry-cal">{e.calories} kcal</div>
+                          <div class="entry-pro">{e.protein}g</div>
+                          <button class="del-btn" onClick={() => del(e.id)} title="delete">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Toast */}
+      <div class={`toast ${toastVisible ? 'show' : ''}`}>{toast}</div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
